@@ -1,0 +1,6 @@
+venv
+.env
+config.json
+feeds.txt
+removed_feeds.txt
+.DS_Store

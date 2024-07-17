@@ -1,0 +1,9 @@
+{
+    "feeds_file": "feeds.txt",
+    "removed_feeds_file": "removed_feeds.txt",
+    "output_folder": "/path/to/your/output/folder",
+    "num_articles": 5,
+    "ollama_model": "llama3:8b",
+    "ollama_ip": "localhost",
+    "ollama_port": "11434"
+}
