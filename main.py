@@ -26,10 +26,25 @@ def write_feeds(file_path, feeds):
         for feed in feeds:
             file.write(f"{feed}\n")
 
-def fetch_feed_content(url, num_articles):
-    """Fetch content from an RSS feed."""
+def fetch_and_validate_feed(url, num_articles):
+    """Fetch content from an RSS feed, validate and standardize its content."""
     feed = feedparser.parse(url)
-    return feed.entries[:num_articles] if feed.entries else None
+    valid_entries = []
+    
+    for entry in feed.entries[:num_articles]:
+        content = (entry.get('summary') or 
+                   entry.get('description') or 
+                   entry.get('content', [{}])[0].get('value', '') or 
+                   entry.get('title', ''))
+        
+        if content.strip():  # Check if there's any non-whitespace content
+            valid_entries.append({
+                'title': entry.get('title', 'Untitled'),
+                'link': entry.get('link', 'No URL available'),
+                'content': content
+            })
+    
+    return valid_entries if valid_entries else None
 
 def ensure_model_available(model):
     """Ensure the specified model is available, attempting to pull if not."""
@@ -48,7 +63,7 @@ def ensure_model_available(model):
             logging.error(f"Unexpected error when checking model availability: {str(e)}")
             raise
 
-def summarize_article(content):
+def summarize_article(article):
     """Summarize an article using Ollama."""
     user_prompt = f"""## INSTRUCTION
     
@@ -56,7 +71,7 @@ def summarize_article(content):
 
     ## ARTICLE
     
-    {content}
+    {article['content']}
 
     ## RULES
 
@@ -87,13 +102,11 @@ def summarize_article(content):
 def main():
     feeds_file = config['feeds_file']
     removed_feeds_file = config['removed_feeds_file']
-    output_folder = os.path.expanduser(config['output_folder'])  # Expand user path if necessary
+    output_folder = os.path.expanduser(config['output_folder'])
     num_articles = config['num_articles']
 
-    # Ensure output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
-    # Ensure the model is available
     try:
         ensure_model_available(config['ollama_model'])
     except Exception:
@@ -106,17 +119,17 @@ def main():
 
     for feed_url in feeds:
         logging.info(f"Processing feed: {feed_url}")
-        content = fetch_feed_content(feed_url, num_articles)
+        articles = fetch_and_validate_feed(feed_url, num_articles)
 
-        if content:
-            for article in content:
-                summary = summarize_article(article.summary)
+        if articles:
+            for article in articles:
+                summary = summarize_article(article)
                 if summary:
-                    summaries.append(f"## {article.title}\n\n{summary}\n\n")
+                    summaries.append(f"## {article['title']}\n\n{summary}\n\n{article['link']}\n\n")
                 else:
-                    logging.warning(f"Failed to summarize article: {article.title}")
+                    logging.warning(f"Failed to summarize article: {article['title']}")
         else:
-            logging.warning(f"No content found for feed: {feed_url}")
+            logging.warning(f"No valid content found for feed: {feed_url}")
             removed_feeds.append(feed_url)
 
     # Update feeds files
@@ -134,6 +147,8 @@ def main():
         file.write("\n".join(summaries))
 
     logging.info(f"Summaries written to {output_file}")
+    if removed_feeds:
+        logging.info(f"Removed {len(removed_feeds)} feed(s) due to lack of content")
 
 if __name__ == "__main__":
     main()
