@@ -4,7 +4,9 @@ from datetime import datetime
 import json
 import logging
 from ollama import Client, ResponseError
-import requests  # Add this import
+import requests
+from requests.exceptions import Timeout, RequestException
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,13 +15,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 with open('config.json', 'r') as config_file:
     config = json.load(config_file)
 
+# Add default timeout if not present in config
+feed_timeout = config.get('feed_timeout', 30)
+
 # Initialize Ollama client
 ollama_client = Client(host=f"http://{config['ollama_ip']}:{config['ollama_port']}")
 
 def read_feeds(file_path):
     """Read feed URLs from a file."""
-    with open(file_path, 'r') as file:
-        return [line.strip() for line in file if line.strip()]
+    try:
+        with open(file_path, 'r') as file:
+            feeds = [line.strip() for line in file if line.strip()]
+        if not feeds:
+            logging.error(f"No feeds found in {file_path}")
+            sys.exit(1)
+        return feeds
+    except FileNotFoundError:
+        logging.error(f"Feeds file not found: {file_path}")
+        sys.exit(1)
 
 def write_feeds(file_path, feeds):
     """Write feed URLs to a file."""
@@ -29,23 +42,41 @@ def write_feeds(file_path, feeds):
 
 def fetch_and_validate_feed(url, num_articles):
     """Fetch content from an RSS feed, validate and standardize its content."""
-    feed = feedparser.parse(url)
-    valid_entries = []
-    
-    for entry in feed.entries[:num_articles]:
-        content = (entry.get('summary') or 
-                   entry.get('description') or 
-                   entry.get('content', [{}])[0].get('value', '') or 
-                   entry.get('title', ''))
+    try:
+        response = requests.get(url, timeout=feed_timeout)
+        response.raise_for_status()
+        feed = feedparser.parse(response.content)
         
-        if content.strip():  # Check if there's any non-whitespace content
-            valid_entries.append({
-                'title': entry.get('title', 'Untitled'),
-                'link': entry.get('link', 'No URL available'),
-                'content': content
-            })
-    
-    return valid_entries if valid_entries else None
+        # Check if the feed was successfully parsed
+        if feed.get('bozo', 0) == 1:
+            logging.warning(f"Error parsing feed {url}: {feed.get('bozo_exception')}")
+            return None
+        
+        valid_entries = []
+        
+        for entry in feed.entries[:num_articles]:
+            content = (entry.get('summary') or 
+                       entry.get('description') or 
+                       entry.get('content', [{}])[0].get('value', '') or 
+                       entry.get('title', ''))
+            
+            if content.strip():  # Check if there's any non-whitespace content
+                valid_entries.append({
+                    'title': entry.get('title', 'Untitled'),
+                    'link': entry.get('link', 'No URL available'),
+                    'content': content
+                })
+        
+        return valid_entries if valid_entries else None
+    except Timeout:
+        logging.info(f"Timeout occurred while fetching feed: {url}")
+        return None
+    except RequestException as e:
+        logging.warning(f"Error fetching feed {url}: {str(e)}")
+        return None
+    except Exception as e:
+        logging.warning(f"Unexpected error fetching feed {url}: {str(e)}")
+        return None
 
 def ensure_model_available(model):
     """Ensure the specified model is available, attempting to pull if not."""
@@ -189,7 +220,7 @@ def main():
             # Strip markdown from text_content
             clean_tts_summaries.append(text_content.replace("#", "").replace("##", "").replace("###", "").replace("\n\n", " "))
             
-        tts_str = "Here's today's news:\n\n" + "\n".join(clean_tts_summaries)
+        tts_str = f"News for {formatted_date}:\n\n" + "\n".join(clean_tts_summaries)
         audio_file = os.path.join(output_folder, f"{current_date.strftime('%Y-%m-%d')}_feed-summaries.mp3")
         if text_to_speech(tts_str, audio_file, config):
             logging.info(f"Audio summary generated: {audio_file}")
@@ -201,4 +232,8 @@ def main():
             logging.warning("Failed to generate audio summary")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nProgram interrupted by user. Exiting gracefully...")
+        sys.exit(0)
