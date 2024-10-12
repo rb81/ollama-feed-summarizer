@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import logging
 from ollama import Client, ResponseError
+import requests  # Add this import
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -99,6 +100,35 @@ def summarize_article(article):
         logging.error(f"Unexpected error during summarization: {str(e)}")
         return None
 
+def text_to_speech(text, output_file, config):
+    """Convert text to speech using the specified TTS API."""
+    tts_config = config.get('text_to_speech', {})
+    url = tts_config.get('endpoint_url')
+    
+    if not url:
+        logging.error("TTS endpoint URL not provided in config.")
+        return False
+
+    payload = {
+        "model": tts_config.get('model', 'tts-1'),
+        "input": text,
+        "voice": tts_config.get('voice', 'alloy'),
+        "response_format": tts_config.get('response_format', 'mp3'),
+        "speed": tts_config.get('speed', 1.0)
+    }
+
+    try:
+        # Use POST request here
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
+        response.raise_for_status()
+        with open(output_file, 'wb') as f:
+            f.write(response.content)
+        logging.info(f"Audio file saved to {output_file}")
+        return True
+    except requests.RequestException as e:
+        logging.error(f"Failed to generate speech: {e}")
+        return False
+
 def main():
     feeds_file = config['feeds_file']
     removed_feeds_file = config['removed_feeds_file']
@@ -116,6 +146,7 @@ def main():
     feeds = read_feeds(feeds_file)
     removed_feeds = []
     summaries = []
+    tts_summaries = []
 
     for feed_url in feeds:
         logging.info(f"Processing feed: {feed_url}")
@@ -126,6 +157,7 @@ def main():
                 summary = summarize_article(article)
                 if summary:
                     summaries.append(f"## {article['title']}\n\n{summary}\n\n{article['link']}\n\n")
+                    tts_summaries.append(f"{article['title']}. {summary}")
                 else:
                     logging.warning(f"Failed to summarize article: {article['title']}")
         else:
@@ -149,6 +181,24 @@ def main():
     logging.info(f"Summaries written to {output_file}")
     if removed_feeds:
         logging.info(f"Removed {len(removed_feeds)} feed(s) due to lack of content")
+
+    # Generate speech if enabled in config
+    if config.get('text_to_speech', {}).get('enabled', False):
+        clean_tts_summaries = []
+        for text_content in tts_summaries:
+            # Strip markdown from text_content
+            clean_tts_summaries.append(text_content.replace("#", "").replace("##", "").replace("###", "").replace("\n\n", " "))
+            
+        tts_str = "Here's today's news:\n\n" + "\n".join(clean_tts_summaries)
+        audio_file = os.path.join(output_folder, f"{current_date.strftime('%Y-%m-%d')}_feed-summaries.mp3")
+        if text_to_speech(tts_str, audio_file, config):
+            logging.info(f"Audio summary generated: {audio_file}")
+            # Add a link to the audio file in the markdown summary
+            with open(output_file, 'a') as file:
+                file.write(f"[Listen to the audio summary]({os.path.basename(audio_file)})")
+            logging.info(f"Added audio link to {output_file}")
+        else:
+            logging.warning("Failed to generate audio summary")
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
 venv
-.env
+.venv
 config.json
 feeds.txt
 removed_feeds.txt

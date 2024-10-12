@@ -14,11 +14,13 @@ Ollama Feed Summarizer is a Python application that loops through multiple RSS f
 - Handles unavailable feeds and updates the feed list
 - Configurable via JSON file
 - Outputs summaries with a date-stamped heading
+- **NEW**: Converts summaries to audio using Text-to-Speech (TTS) with [OpenedAI Speech](https://github.com/matatonic/openedai-speech.git). (This script assumes that you have a local instance of OpenedAI Speech running.)
 
 ## Requirements
 
 - Python 3.7+
 - [Ollama](https://ollama.com/) installed and running locally
+- [OpenedAI Speech](https://github.com/matatonic/openedai-speech.git) for TTS functionality
 
 ## Installation
 
@@ -40,9 +42,17 @@ Ollama Feed Summarizer is a Python application that loops through multiple RSS f
        "removed_feeds_file": "removed_feeds.txt",
        "output_folder": "/path/to/your/output/folder",
        "num_articles": 5,
-       "ollama_model": "llama3:8b",
+       "ollama_model": "llama3.2:3b",
        "ollama_ip": "localhost",
-       "ollama_port": "11434"
+       "ollama_port": "11434",
+       "text_to_speech": {
+           "enabled": true,
+           "endpoint_url": "http://localhost:8000/v1/audio/speech",
+           "model": "tts-1",
+           "voice": "alloy",
+           "response_format": "mp3",
+           "speed": 1.0
+       }
    }
    ```
 
@@ -62,6 +72,7 @@ The script will:
 2. Fetch and summarize the specified number of articles from each feed
 3. Compile summaries into a markdown file in the specified output folder
 4. Update `feeds.txt` and `removed_feeds.txt` if any feeds are unavailable or do not contain any content
+5. **NEW**: Generate an audio summary of the articles if TTS is enabled
 
 ## Output
 
@@ -69,6 +80,7 @@ The script generates a markdown file named `YYYY-MM-DD_feed-summaries.md` in the
 
 - A heading with the current date (e.g., "News for Tuesday, January 1, 2024")
 - Summaries of articles from the processed feeds
+- **NEW**: A link to the audio summary if TTS is enabled
 
 ## Configuration
 
@@ -77,6 +89,7 @@ Adjust the `config.json` file to change:
 - Input and output file locations
 - Number of articles to summarize per feed
 - Ollama model and connection details
+- **NEW**: TTS settings such as model, voice, and speed
 
 ## License
 
