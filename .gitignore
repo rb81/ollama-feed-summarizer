@@ -1,6 +1,13 @@
-venv
-.venv
-config.json
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+config.yaml
 feeds.txt
-removed_feeds.txt
+output/
+
 .DS_Store

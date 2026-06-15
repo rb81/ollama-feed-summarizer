@@ -1,0 +1,33 @@
+# Feed Summarizer Configuration
+# Copy this file to config.yaml and customize.
+
+# LLM Provider (any OpenAI-compatible API)
+# Examples:
+#   Ollama:     base_url: http://localhost:11434/v1, api_key: ollama
+#   OpenRouter: base_url: https://openrouter.ai/api/v1, api_key: sk-or-...
+#   OpenAI:     base_url: https://api.openai.com/v1, api_key: sk-...
+llm:
+  base_url: http://localhost:11434/v1
+  api_key: ollama
+  model: llama3.2:3b
+  timeout: 120
+  max_retries: 3
+
+# Feed settings
+feeds:
+  file: feeds.txt
+  articles_per_feed: 5
+  fetch_timeout: 30
+  failure_threshold: 3  # Remove feed after N consecutive failures
+
+# Concurrency (set to 1 for sequential processing — best for local models)
+concurrency:
+  max_feeds: 1
+  max_summaries: 1
+
+# Output settings
+output:
+  folder: output
+  formats:
+    - markdown
+    # - json  # Uncomment to also generate JSON output

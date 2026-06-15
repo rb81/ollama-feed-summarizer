@@ -1,0 +1,23 @@
+[project]
+name = "feed-summarizer"
+version = "2.0.0"
+description = "A fast, modern RSS feed summarizer using any OpenAI-compatible LLM provider"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=1.0",
+    "feedparser>=6.0",
+    "aiohttp>=3.9",
+    "pydantic>=2.0",
+    "tenacity>=8.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+feed-summarizer = "feed_summarizer.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
